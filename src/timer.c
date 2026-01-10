@@ -899,7 +899,9 @@ int ls_timer_reset(ls_timer* timer)
         if (timer->started && timer->time <= 0) {
             return ls_timer_cancel(timer);
         }
-        ls_run_save(timer, "RESET");
+        if (timer->curr_split < timer->game->split_count) {
+            ls_run_save(timer, "RESET");
+        }
         reset_timer(timer);
         return 1;
     }

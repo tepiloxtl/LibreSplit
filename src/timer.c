@@ -537,16 +537,18 @@ int ls_game_save(const ls_game* game)
     return error;
 }
 
-int ls_run_save(ls_timer* timer, const char* reason) {
-    if (timer->time == 0) return 0;
+int ls_run_save(ls_timer* timer, const char* reason)
+{
+    if (timer->time == 0)
+        return 0;
 
     int error = 0;
     char final_time_str[128];
     ls_time_string_serialized(final_time_str, timer->time);
 
     // Root JSON Object
-    json_t *json = json_object();
-    
+    json_t* json = json_object();
+
     // Basic Run Info
     if (timer->game->title) {
         json_object_set_new(json, "title", json_string(timer->game->title));
@@ -561,14 +563,14 @@ int ls_run_save(ls_timer* timer, const char* reason) {
     json_object_set_new(json, "reason", json_string(reason));
 
     // Splits Array
-    json_t *splits = json_array();
-    
+    json_t* splits = json_array();
+
     for (int i = 0; i < timer->game->split_count; i++) {
-        json_t *split = json_object();
-        
+        json_t* split = json_object();
+
         // Title
         json_object_set_new(split, "title", json_string(timer->game->split_titles[i]));
-        
+
         // Time
         if (i < timer->curr_split) {
             char split_time_str[128];
@@ -588,12 +590,12 @@ int ls_run_save(ls_timer* timer, const char* reason) {
     strncat(path, "/runs", sizeof(path) - strlen(path) - 1);
 
     time_t rawtime;
-    struct tm * timeinfo;
+    struct tm* timeinfo;
     char time_buf[64];
     time(&rawtime);
     timeinfo = localtime(&rawtime);
     strftime(time_buf, sizeof(time_buf), "%Y-%m-%d_%H-%M-%S", timeinfo);
-    
+
     char filename[PATH_MAX];
     snprintf(filename, sizeof(filename), "%s/run_%s.json", path, time_buf);
 

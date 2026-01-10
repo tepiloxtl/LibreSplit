@@ -537,8 +537,8 @@ int ls_game_save(const ls_game* game)
     return error;
 }
 
-static void ls_run_save(ls_timer* timer, const char* reason) {
-    if (timer->time == 0) return;
+int ls_run_save(ls_timer* timer, const char* reason) {
+    if (timer->time == 0) return 0;
 
     int error = 0;
     char final_time_str[128];

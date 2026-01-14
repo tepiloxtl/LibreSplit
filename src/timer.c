@@ -574,8 +574,11 @@ int ls_run_save(ls_timer* timer, const char* reason)
         // Time
         if (i < timer->curr_split) {
             char split_time_str[128];
+            char segment_time_str[128];
             ls_time_string_serialized(split_time_str, timer->split_times[i]);
+            ls_time_string_serialized(segment_time_str, timer->segment_times[i]);
             json_object_set_new(split, "time", json_string(split_time_str));
+            json_object_set_new(split, "segment", json_string(segment_time_str));
         } else {
             // Split not reached: set to null
             json_object_set_new(split, "time", json_null());

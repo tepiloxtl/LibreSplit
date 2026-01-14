@@ -573,15 +573,23 @@ int ls_run_save(ls_timer* timer, const char* reason)
 
         // Time
         if (i < timer->curr_split) {
-            char split_time_str[128];
-            char segment_time_str[128];
-            ls_time_string_serialized(split_time_str, timer->split_times[i]);
-            ls_time_string_serialized(segment_time_str, timer->segment_times[i]);
-            json_object_set_new(split, "time", json_string(split_time_str));
-            json_object_set_new(split, "segment", json_string(segment_time_str));
-        } else {
-            // Split not reached: set to null
-            json_object_set_new(split, "time", json_null());
+            // Check if time > 0, avoids saving time on skipped splits
+            if (timer->split_times[i] > 0 && timer->split_times[i] < LLONG_MAX) {
+                char split_time_str[128];
+                ls_time_string_serialized(split_time_str, timer->split_times[i]);
+                json_object_set_new(split, "time", json_string(split_time_str));
+                // Check if segment time > 0, avoids saving segment time AFTER skipped split
+                if (timer->segment_times[i] > 0 && timer->segment_times[i] < LLONG_MAX) {
+                    char segment_time_str[128];
+                    ls_time_string_serialized(segment_time_str, timer->segment_times[i]);
+                    json_object_set_new(split, "segment", json_string(segment_time_str));
+                } else {
+                    json_object_set_new(split, "segment", json_null());
+                }
+            } else {
+                json_object_set_new(split, "time", json_null());
+                json_object_set_new(split, "segment", json_null());
+            }
         }
         json_array_append_new(splits, split);
     }

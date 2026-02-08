@@ -70,7 +70,7 @@ LibreSplit requires the following dependencies on your system to compile:
 - `libjansson`
 - `luajit`
 
-Following optional dependencies are required for certain features to work
+Following optional runtime dependencies are required for certain features to work:
 
 - `gvfs` (fetching and displaying split icons from web)
 - `glib-networking` (fetching and displaying split icons from web)
@@ -89,6 +89,13 @@ Install the required dependencies:
     ```sh
     sudo pacman -Sy
     sudo pacman -S gtk3 jansson luajit git meson
+    ```
+
+- Fedora-based systems
+
+    ```sh
+    sudo dnf update
+    sudo dnf install git meson gcc gtk3-devel luajit-devel jansson-devel
     ```
 
 Clone the project:

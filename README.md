@@ -94,7 +94,6 @@ Install the required dependencies:
 - Fedora-based systems
 
     ```sh
-    sudo dnf update
     sudo dnf install git meson gcc gtk3-devel luajit-devel jansson-devel
     ```
 

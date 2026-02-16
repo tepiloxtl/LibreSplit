@@ -5,6 +5,7 @@
 #include "timer.h"
 #include "gui/dialogs.h"
 #include "settings/utils.h"
+#include "therun.h"
 
 #include "lasr/auto-splitter.h"
 
@@ -884,6 +885,9 @@ int ls_timer_split(ls_timer* timer)
                     ls_run_save(timer, "FINISHED");
                 }
             }
+            // char* therun;
+            build_therun_live_payload(timer);
+            // fprintf(stderr, therun);
             return timer->curr_split;
         }
     }

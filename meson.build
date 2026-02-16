@@ -31,6 +31,7 @@ libresplit_sources = files(
     'src/server.c',
     'src/shared.c',
     'src/timer.c',
+    'src/therun.c',
 
     # Settings
     'src/settings/definitions.c',

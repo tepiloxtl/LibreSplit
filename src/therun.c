@@ -2,7 +2,15 @@
 #include <jansson.h>
 #include <time.h>
 #include <limits.h>
+#include <string.h>
 
+/**
+ * Converts a time in "milliseconds" (microseconds) to a json float in milliseconds.
+ * 
+ * This should be put in timer.c later probably
+ *
+ * @param microseconds Time to convert.
+ */
 json_t* time_to_ms(int64_t microseconds) {
     if (microseconds == LLONG_MAX) { 
         return json_null(); 
@@ -13,9 +21,22 @@ json_t* time_to_ms(int64_t microseconds) {
 
 char* build_therun_live_payload(ls_timer *timer) {
     json_t *root = json_object();
+
     json_t *metadata = json_object();
-    json_object_set_new(metadata, "game", json_string(timer->game->title)); //Yeah, we don't have anything else than split title to work with
-    json_object_set_new(metadata, "category", json_string(timer->game->title)); //I guess I could like split string on | as a crutch for now
+    const char *game_title = timer->game->title;
+    char *pipe_pos = strchr(game_title, '|');
+    if (pipe_pos != NULL) {
+        size_t game_len = pipe_pos - game_title;
+        while (game_len > 0 && game_title[game_len - 1] == ' ') {
+            game_len--;
+        }
+        json_object_set_new(metadata, "game", json_stringn(game_title, game_len));
+        const char *category_start = pipe_pos + 1;
+        while (*category_start == ' ') {
+            category_start++;
+        }
+        json_object_set_new(metadata, "category", json_string(category_start));
+    }
     json_object_set_new(metadata, "platform", json_string(""));
     json_object_set_new(metadata, "region", json_string(""));
     json_object_set_new(metadata, "emulator", json_boolean(false)); //It's a bool in LiveSplit I think

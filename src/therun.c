@@ -36,6 +36,9 @@ char* build_therun_live_payload(ls_timer *timer) {
             category_start++;
         }
         json_object_set_new(metadata, "category", json_string(category_start));
+    } else {
+        json_object_set_new(metadata, "game", json_string(game_title));
+        json_object_set_new(metadata, "category", json_string(""));
     }
     json_object_set_new(metadata, "platform", json_string(""));
     json_object_set_new(metadata, "region", json_string(""));

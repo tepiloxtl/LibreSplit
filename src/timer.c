@@ -833,6 +833,7 @@ int ls_timer_start(ls_timer* timer)
         if (!timer->started) {
             ++*timer->attempt_count;
             timer->started = 1;
+            build_therun_live_payload(timer);
         }
         timer->running = 1;
     }

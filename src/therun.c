@@ -1,8 +1,17 @@
 #include "timer.h"
 #include <jansson.h>
+#include <time.h>
+#include <limits.h>
+
+json_t* time_to_ms(int64_t microseconds) {
+    if (microseconds == LLONG_MAX) { 
+        return json_null(); 
+    }
+    double milliseconds = (double)microseconds / 1000.0;
+    return json_real(milliseconds);
+}
 
 char* build_therun_live_payload(ls_timer *timer) {
-    printf("tesrt");
     json_t *root = json_object();
     json_t *metadata = json_object();
     json_object_set_new(metadata, "game", json_string(timer->game->title)); //Yeah, we don't have anything else than split title to work with
@@ -15,12 +24,11 @@ char* build_therun_live_payload(ls_timer *timer) {
 
     json_t *runData = json_array();
     for (int i = 0; i < timer->game->split_count; i++) {
-        fprintf(stderr, "test");
         json_t *segment = json_object();
         json_object_set_new(segment, "name", json_string(timer->game->split_titles[i]));
-        json_object_set_new(segment, "splitTime", json_integer(timer->split_times[i]));
-        json_object_set_new(segment, "pbSplitTime", json_integer(timer->best_splits[i])); //is this correct? Subject to test out
-        json_object_set_new(segment, "bestPossible", json_integer(timer->best_segments[i]));
+        json_object_set_new(segment, "splitTime", time_to_ms(timer->split_times[i]));
+        json_object_set_new(segment, "pbSplitTime", time_to_ms(timer->best_splits[i])); //is this correct? Subject to test out
+        json_object_set_new(segment, "bestPossible", time_to_ms(timer->best_segments[i]));
         // Comparison goes here, whatever it is, like comparison to best time??
         json_array_append_new(runData, segment);
     }
@@ -43,7 +51,17 @@ char* build_therun_live_payload(ls_timer *timer) {
     json_object_set_new(root, "wasJustResumed", json_integer(0));
     json_object_set_new(root, "currentComparison", json_integer(0));
 
-    char *payload = json_dumps(root, 0);
+    char *payload = json_dumps(root, 1);
+
+    time_t rawtime;
+    struct tm* timeinfo;
+    char time_buf[64];
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    strftime(time_buf, sizeof(time_buf), "%Y-%m-%d_%H-%M-%S", timeinfo);
+    char filename[PATH_MAX];
+    snprintf(filename, sizeof(filename), "build/test-%s.json", time_buf);
+    json_dump_file(root, filename, JSON_PRESERVE_ORDER | JSON_INDENT(2));
     json_decref(root);
     fprintf(stderr, payload);
 

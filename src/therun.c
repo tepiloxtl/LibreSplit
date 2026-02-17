@@ -6,6 +6,7 @@
 #include <string.h>
 #include <curl/curl.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 /**
  * Converts a time in "milliseconds" (microseconds) to a json float in milliseconds.
@@ -93,14 +94,13 @@ char* build_therun_live_payload(ls_timer *timer) {
     snprintf(filename, sizeof(filename), "build/test-%s.json", time_buf);
     json_dump_file(root, filename, JSON_PRESERVE_ORDER | JSON_INDENT(2));
     json_decref(root);
-    fprintf(stderr, payload);
+    // fprintf(stderr, payload);
 
     return payload;
 }
 
-void therun_trigger_update(ls_timer *timer) {
-    char *payload = build_therun_live_payload(timer);
-    if (!payload) return;
+void *therun_upload_thread(void *arg) {
+    char *payload = (char *)arg;
 
     CURL *curl = curl_easy_init();
     if (curl) {
@@ -118,6 +118,21 @@ void therun_trigger_update(ls_timer *timer) {
         }
         curl_slist_free_all(headers);
         curl_easy_cleanup(curl);
+    }
+    free(payload);
+    return 0;
+}
+
+void therun_trigger_update(ls_timer *timer) {
+    char *payload = build_therun_live_payload(timer);
+    if (!payload) return;
+
+    pthread_t thread_id;
+    int result = pthread_create(&thread_id, NULL, therun_upload_thread, payload);
+    if (result == 0) {
+        pthread_detach(thread_id);
+    } else {
+        fprintf(stderr, "[therun.gg] THREAD FAILED!\n");
         free(payload);
     }
 }

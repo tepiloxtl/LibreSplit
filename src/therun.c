@@ -20,9 +20,12 @@ json_t* time_to_ms(int64_t microseconds) {
 }
 
 char* build_therun_live_payload(ls_timer *timer) {
+    const char* therun_key = getenv("LIBRESPLIT_THERUN_KEY");
     json_t *root = json_object();
 
     json_t *metadata = json_object();
+    // This is all to split split file title to game and category for API. Should be added as fields into
+    // JSON at some point, alongside platform, region and emulator maybe?
     const char *game_title = timer->game->title;
     char *pipe_pos = strchr(game_title, '|');
     if (pipe_pos != NULL) {
@@ -42,8 +45,8 @@ char* build_therun_live_payload(ls_timer *timer) {
     }
     json_object_set_new(metadata, "platform", json_string(""));
     json_object_set_new(metadata, "region", json_string(""));
-    json_object_set_new(metadata, "emulator", json_boolean(false)); //It's a bool in LiveSplit I think
-    json_object_set_new(metadata, "variables", json_string("")); //No idea
+    json_object_set_new(metadata, "emulator", json_false());
+    json_object_set_new(metadata, "variables", json_string("")); //Empty in my dumps
     json_object_set_new(root, "metadata", metadata);
 
     json_t *runData = json_array();
@@ -53,27 +56,27 @@ char* build_therun_live_payload(ls_timer *timer) {
         json_object_set_new(segment, "splitTime", time_to_ms(timer->split_times[i]));
         json_object_set_new(segment, "pbSplitTime", time_to_ms(timer->best_splits[i])); //is this correct? Subject to test out
         json_object_set_new(segment, "bestPossible", time_to_ms(timer->best_segments[i]));
-        // Comparison goes here, whatever it is, like comparison to best time??
+        json_object_set_new(segment, "comparisons", json_array()); //empty for now, this contains Personal Best, Best Segments, Average Segments fields in LiveSplit dumps
         json_array_append_new(runData, segment);
     }
     json_object_set_new(root, "runData", runData);
 
-    json_object_set_new(root, "currentTime", json_integer(0));
-    json_object_set_new(root, "currentSplitName", json_integer(0));
-    json_object_set_new(root, "currentSplitIndex", json_integer(0));
-    json_object_set_new(root, "timingMethod", json_integer(0));
-    json_object_set_new(root, "currentDuration", json_integer(0));
-    json_object_set_new(root, "startTime", json_integer(0));
-    json_object_set_new(root, "endTime", json_integer(0));
-    json_object_set_new(root, "uploadKey", json_integer(0));
-    json_object_set_new(root, "isPaused", json_integer(0));
-    json_object_set_new(root, "isGameTimePaused", json_integer(0));
-    json_object_set_new(root, "gameTimePauseTime", json_integer(0));
-    json_object_set_new(root, "totalPauseTime", json_integer(0));
-    json_object_set_new(root, "currentPauseTime", json_integer(0));
-    json_object_set_new(root, "timePausedAt", json_integer(0));
-    json_object_set_new(root, "wasJustResumed", json_integer(0));
-    json_object_set_new(root, "currentComparison", json_integer(0));
+    json_object_set_new(root, "currentTime", time_to_ms(timer->time));
+    json_object_set_new(root, "currentSplitName", json_string(timer->game->split_titles[timer->curr_split]));
+    json_object_set_new(root, "currentSplitIndex", json_integer(timer->curr_split));
+    json_object_set_new(root, "timingMethod", json_integer(0)); //NYI, 0 in my dumps, maybe says either its RTA or IGT
+    json_object_set_new(root, "currentDuration", time_to_ms(timer->time)); //NYI, Time with pauses, for now just time
+    json_object_set_new(root, "startTime", json_integer(0)); //NYI
+    json_object_set_new(root, "endTime", json_integer(0)); //NYI
+    json_object_set_new(root, "uploadKey", json_string(therun_key));
+    json_object_set_new(root, "isPaused", json_false()); //NYI, for now false
+    json_object_set_new(root, "isGameTimePaused", json_false()); //NYI, for now false
+    json_object_set_new(root, "gameTimePauseTime", json_null()); //NYI, for now null
+    json_object_set_new(root, "totalPauseTime", json_null()); //NYI, for now null
+    json_object_set_new(root, "currentPauseTime", json_null()); //NYI, for now null
+    json_object_set_new(root, "timePausedAt", json_integer(0)); //NYI, for now 0
+    json_object_set_new(root, "wasJustResumed", json_false()); //NYI, for now false
+    json_object_set_new(root, "currentComparison", json_string("Personal Best")); //NYI, for now PB
 
     char *payload = json_dumps(root, 1);
 

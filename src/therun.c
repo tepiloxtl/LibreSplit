@@ -1,8 +1,11 @@
+#include "therun.h"
 #include "timer.h"
 #include <jansson.h>
 #include <time.h>
 #include <limits.h>
 #include <string.h>
+#include <curl/curl.h>
+#include <stdlib.h>
 
 /**
  * Converts a time in "milliseconds" (microseconds) to a json float in milliseconds.
@@ -93,4 +96,28 @@ char* build_therun_live_payload(ls_timer *timer) {
     fprintf(stderr, payload);
 
     return payload;
+}
+
+void therun_trigger_update(ls_timer *timer) {
+    char *payload = build_therun_live_payload(timer);
+    if (!payload) return;
+
+    CURL *curl = curl_easy_init();
+    if (curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, "https://dspc6ekj2gjkfp44cjaffhjeue0fbswr.lambda-url.eu-west-1.on.aws/");
+        struct curl_slist *headers = NULL;
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+        headers = curl_slist_append(headers, "Accept: application/json");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
+        CURLcode res = curl_easy_perform(curl);
+        if (res != CURLE_OK) {
+            fprintf(stderr, "[therun.gg] FAILED: %s\n", curl_easy_strerror(res));
+        } else {
+            fprintf(stderr, "[therun.gg] OK!\n");
+        }
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+        free(payload);
+    }
 }

@@ -24,7 +24,22 @@ json_t* time_to_ms(int64_t microseconds)
     return json_real(milliseconds);
 }
 
-char* build_therun_live_payload(ls_timer* timer)
+/** 0 - start/split
+ *  1 - reset
+ *  2 - pause
+ *  3 - unpause
+ *  4 - finish??
+ *  5 - undo
+ *  6 - skip
+ * 
+ * LiveSplit behavior at finish is to set currentSplitIndex to total amount of splits + 1
+ * and currentSplitName to "", check what LibreSplit will do
+ * 
+ * Undosplit should resend payload with splitTime reset to null, decrease currentSplitIndex
+ * and update currentSplitName. Skipsplit afaics does nothing?? Not even increase currentSplitIndex?
+ * Might have to recheck that
+ */
+char* build_therun_live_payload(ls_timer* timer, int source)
 {
     const char* therun_key = getenv("LIBRESPLIT_THERUN_KEY");
     json_t* root = json_object();
@@ -68,20 +83,35 @@ char* build_therun_live_payload(ls_timer* timer)
     json_object_set_new(root, "runData", runData);
 
     json_object_set_new(root, "currentTime", time_to_ms(timer->time));
-    json_object_set_new(root, "currentSplitName", json_string(timer->game->split_titles[timer->curr_split]));
-    json_object_set_new(root, "currentSplitIndex", json_integer(timer->curr_split));
+    if (source == 1) {
+        json_object_set_new(root, "currentSplitName", json_string(""));
+        json_object_set_new(root, "currentSplitIndex", json_integer(-1));
+    } else {
+        json_object_set_new(root, "currentSplitName", json_string(timer->game->split_titles[timer->curr_split]));
+        json_object_set_new(root, "currentSplitIndex", json_integer(timer->curr_split));
+    }
     json_object_set_new(root, "timingMethod", json_integer(0)); // NYI, 0 in my dumps, maybe says either its RTA or IGT
     json_object_set_new(root, "currentDuration", time_to_ms(timer->time)); // NYI, Time with pauses, for now just time
     json_object_set_new(root, "startTime", json_integer(0)); // NYI
     json_object_set_new(root, "endTime", json_integer(0)); // NYI
     json_object_set_new(root, "uploadKey", json_string(therun_key));
-    json_object_set_new(root, "isPaused", json_false()); // NYI, for now false
-    json_object_set_new(root, "isGameTimePaused", json_false()); // NYI, for now false
+    if (source == 2) {
+        json_object_set_new(root, "isPaused", json_true());
+        json_object_set_new(root, "isGameTimePaused", json_true());
+        json_object_set_new(root, "wasJustResumed", json_false());
+    } else if (source == 3) {
+        json_object_set_new(root, "isPaused", json_false());
+        json_object_set_new(root, "isGameTimePaused", json_false());
+        json_object_set_new(root, "wasJustResumed", json_true());
+    } else {
+        json_object_set_new(root, "isPaused", json_false());
+        json_object_set_new(root, "isGameTimePaused", json_false());
+        json_object_set_new(root, "wasJustResumed", json_false());
+    }
     json_object_set_new(root, "gameTimePauseTime", json_null()); // unused, for now null
     json_object_set_new(root, "totalPauseTime", json_null()); // unused, for now null
     json_object_set_new(root, "currentPauseTime", json_null()); // unused, for now null
     json_object_set_new(root, "timePausedAt", json_integer(0)); // unused?, for now 0
-    json_object_set_new(root, "wasJustResumed", json_false()); // NYI, for now false
     json_object_set_new(root, "currentComparison", json_string("Personal Best")); // NYI, for now PB
 
     char* payload = json_dumps(root, 1);
@@ -126,9 +156,9 @@ void* therun_upload_thread(void* arg)
     return 0;
 }
 
-void therun_trigger_update(ls_timer* timer)
+void therun_trigger_update(ls_timer* timer, int source)
 {
-    char* payload = build_therun_live_payload(timer);
+    char* payload = build_therun_live_payload(timer, source);
     if (!payload)
         return;
 

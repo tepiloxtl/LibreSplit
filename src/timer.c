@@ -833,7 +833,7 @@ int ls_timer_start(ls_timer* timer)
         if (!timer->started) {
             ++*timer->attempt_count;
             timer->started = 1;
-            therun_trigger_update(timer);
+            therun_trigger_update(timer, 0);
         }
         timer->running = 1;
     }
@@ -887,7 +887,7 @@ int ls_timer_split(ls_timer* timer)
                 }
             }
             // char* therun;
-            therun_trigger_update(timer);
+            therun_trigger_update(timer, 0);
             // fprintf(stderr, therun);
             return timer->curr_split;
         }

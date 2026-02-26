@@ -77,6 +77,7 @@ char* build_therun_live_payload(ls_timer* timer, int source)
         json_object_set_new(segment, "splitTime", time_to_ms(timer->split_times[i]));
         json_object_set_new(segment, "pbSplitTime", time_to_ms(timer->best_splits[i])); // is this correct? Subject to test out
         json_object_set_new(segment, "bestPossible", time_to_ms(timer->best_segments[i]));
+        // I have tried setting comparisons with some custom data, but nothing interesting showed up on the site, best to recreate what info is sent from Livesplit to the best of capabilities
         json_object_set_new(segment, "comparisons", json_array()); // empty for now, this contains Personal Best, Best Segments, Average Segments fields in LiveSplit dumps
         json_array_append_new(runData, segment);
     }
@@ -90,10 +91,10 @@ char* build_therun_live_payload(ls_timer* timer, int source)
         json_object_set_new(root, "currentSplitName", json_string(timer->game->split_titles[timer->curr_split]));
         json_object_set_new(root, "currentSplitIndex", json_integer(timer->curr_split));
     }
-    json_object_set_new(root, "timingMethod", json_integer(0)); // NYI, 0 in my dumps, maybe says either its RTA or IGT
+    json_object_set_new(root, "timingMethod", json_integer(0)); // NYI, set in Compare Against option in RMB menu in LiveSplit, 0 for RTA, 1 for IGT
     json_object_set_new(root, "currentDuration", time_to_ms(timer->time)); // NYI, Time with pauses, for now just time
-    json_object_set_new(root, "startTime", json_integer(0)); // NYI
-    json_object_set_new(root, "endTime", json_integer(0)); // NYI
+    json_object_set_new(root, "startTime", json_integer(0)); // NYI, this is timestamp in ms, formatted as a string like "\/Date(1772038944242)\/"
+    json_object_set_new(root, "endTime", json_integer(0)); // NYI, probably not needed, it ususally either "\/Date(-62135596800000)\/" or timestamp of last run finishing
     json_object_set_new(root, "uploadKey", json_string(therun_key));
     if (source == 2) {
         json_object_set_new(root, "isPaused", json_true());
@@ -126,7 +127,7 @@ char* build_therun_live_payload(ls_timer* timer, int source)
     snprintf(filename, sizeof(filename), "build/test-%s.json", time_buf);
     json_dump_file(root, filename, JSON_PRESERVE_ORDER | JSON_INDENT(2));
     json_decref(root);
-    // fprintf(stderr, payload);
+    fprintf(stderr, payload);
 
     return payload;
 }

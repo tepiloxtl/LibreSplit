@@ -31,10 +31,10 @@ json_t* time_to_ms(int64_t microseconds)
  *  4 - finish??
  *  5 - undo
  *  6 - skip
- * 
+ *
  * LiveSplit behavior at finish is to set currentSplitIndex to total amount of splits + 1
  * and currentSplitName to "", check what LibreSplit will do
- * 
+ *
  * Undosplit should resend payload with splitTime reset to null, decrease currentSplitIndex
  * and update currentSplitName. Skipsplit afaics does nothing?? Not even increase currentSplitIndex?
  * Might have to recheck that
@@ -78,8 +78,16 @@ char* build_therun_live_payload(ls_timer* timer, int source)
         json_object_set_new(segment, "pbSplitTime", time_to_ms(timer->best_splits[i])); // is this correct? Subject to test out
         json_object_set_new(segment, "bestPossible", time_to_ms(timer->best_segments[i]));
         // I have tried setting comparisons with some custom data, but nothing interesting showed up on the site, best to recreate what info is sent from Livesplit to the best of capabilities
-        json_object_set_new(segment, "comparisons", json_array()); // empty for now, this contains Personal Best, Best Segments, Average Segments fields in LiveSplit dumps
-        json_array_append_new(runData, segment);
+        json_t* comparisons = json_array();
+        json_t* personalbest = json_object();
+        json_object_set_new(personalbest, "name", json_string("Personal Best"));
+        json_object_set_new(personalbest, "time", time_to_ms(timer->best_splits[i]));
+        json_t* bestsegment = json_object();
+        json_object_set_new(bestsegment, "name", json_string("Best Segments"));
+        json_object_set_new(bestsegment, "time", time_to_ms(timer->best_segments[i]));
+        json_array_append_new(comparisons, personalbest);
+        json_array_append_new(comparisons, bestsegment);
+        json_object_set_new(segment, "comparisons", comparisons); // Best effort, neither Personal Best or Best Segment are 100% corrent with how LiveSplit does it, and Averages does not exist yet
     }
     json_object_set_new(root, "runData", runData);
 
@@ -128,6 +136,7 @@ char* build_therun_live_payload(ls_timer* timer, int source)
     json_dump_file(root, filename, JSON_PRESERVE_ORDER | JSON_INDENT(2));
     json_decref(root);
     fprintf(stderr, payload);
+    fprintf(stderr, "%d", source);
 
     return payload;
 }

@@ -706,7 +706,7 @@ static void reset_timer(ls_timer* timer)
             break;
         }
     }
-    therun_trigger_update(timer, 1);
+    therun_trigger_update(timer, 2);
 }
 
 int ls_timer_create(ls_timer** timer_ptr, ls_game* game)
@@ -910,7 +910,7 @@ int ls_timer_skip(ls_timer* timer)
             timer->segment_times[timer->curr_split] = 0;
             timer->segment_deltas[timer->curr_split] = 0;
             ++timer->curr_split;
-            therun_trigger_update(timer, 6);
+            therun_trigger_update(timer, 7);
             return timer->curr_split;
         }
     }
@@ -932,7 +932,7 @@ int ls_timer_unsplit(ls_timer* timer)
         if (timer->curr_split + 1 == timer->game->split_count) {
             timer->running = 1;
         }
-        therun_trigger_update(timer, 5);
+        therun_trigger_update(timer, 6);
         return timer->curr_split;
     }
     return 0;

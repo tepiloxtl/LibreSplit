@@ -8,6 +8,8 @@
 #include <string.h>
 #include <time.h>
 
+static int64_t real_epoch_start_ms = 0;
+
 /**
  * Converts a time in "milliseconds" (microseconds) to a json float in milliseconds.
  *
@@ -24,13 +26,14 @@ json_t* time_to_ms(int64_t microseconds)
     return json_real(milliseconds);
 }
 
-/** 0 - start/split
- *  1 - reset
- *  2 - pause
- *  3 - unpause
- *  4 - finish??
- *  5 - undo
- *  6 - skip
+/** 0 - start
+ *  1 - split
+ *  2 - reset
+ *  3 - pause
+ *  4 - unpause
+ *  5 - finish??
+ *  6 - undo
+ *  7 - skip
  *
  * LiveSplit behavior at finish is to set currentSplitIndex to total amount of splits + 1
  * and currentSplitName to "", check what LibreSplit will do
@@ -42,6 +45,9 @@ json_t* time_to_ms(int64_t microseconds)
 char* build_therun_live_payload(ls_timer* timer, int source)
 {
     const char* therun_key = getenv("LIBRESPLIT_THERUN_KEY");
+    if (source == 0) {
+        real_epoch_start_ms = (int64_t)time(NULL) * 1000;
+    }
     json_t* root = json_object();
 
     json_t* metadata = json_object();
@@ -88,11 +94,13 @@ char* build_therun_live_payload(ls_timer* timer, int source)
         json_array_append_new(comparisons, personalbest);
         json_array_append_new(comparisons, bestsegment);
         json_object_set_new(segment, "comparisons", comparisons); // Best effort, neither Personal Best or Best Segment are 100% corrent with how LiveSplit does it, and Averages does not exist yet
+        json_array_append_new(runData, segment);
+        fprintf(stderr, "%d", i);
     }
     json_object_set_new(root, "runData", runData);
 
     json_object_set_new(root, "currentTime", time_to_ms(timer->time));
-    if (source == 1) {
+    if (source == 2) {
         json_object_set_new(root, "currentSplitName", json_string(""));
         json_object_set_new(root, "currentSplitIndex", json_integer(-1));
     } else {
@@ -101,14 +109,16 @@ char* build_therun_live_payload(ls_timer* timer, int source)
     }
     json_object_set_new(root, "timingMethod", json_integer(0)); // NYI, set in Compare Against option in RMB menu in LiveSplit, 0 for RTA, 1 for IGT
     json_object_set_new(root, "currentDuration", time_to_ms(timer->time)); // NYI, Time with pauses, for now just time
-    json_object_set_new(root, "startTime", json_integer(0)); // NYI, this is timestamp in ms, formatted as a string like "\/Date(1772038944242)\/"
+    char start_time_str[32];
+    snprintf(start_time_str, sizeof(start_time_str), "/Date(%lld)/", (long long)real_epoch_start_ms);
+    json_object_set_new(root, "startTime", json_string(start_time_str)); // NYI, this is timestamp in ms, formatted as a string like "\/Date(1772038944242)\/"
     json_object_set_new(root, "endTime", json_integer(0)); // NYI, probably not needed, it ususally either "\/Date(-62135596800000)\/" or timestamp of last run finishing
     json_object_set_new(root, "uploadKey", json_string(therun_key));
-    if (source == 2) {
+    if (source == 3) {
         json_object_set_new(root, "isPaused", json_true());
         json_object_set_new(root, "isGameTimePaused", json_true());
         json_object_set_new(root, "wasJustResumed", json_false());
-    } else if (source == 3) {
+    } else if (source == 4) {
         json_object_set_new(root, "isPaused", json_false());
         json_object_set_new(root, "isGameTimePaused", json_false());
         json_object_set_new(root, "wasJustResumed", json_true());

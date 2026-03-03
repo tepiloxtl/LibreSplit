@@ -31,7 +31,7 @@ json_t* time_to_ms(int64_t microseconds)
  *  2 - reset
  *  3 - pause
  *  4 - unpause
- *  5 - finish??
+ *  5 - finish
  *  6 - undo
  *  7 - skip
  *
@@ -39,8 +39,7 @@ json_t* time_to_ms(int64_t microseconds)
  * and currentSplitName to "", check what LibreSplit will do
  *
  * Undosplit should resend payload with splitTime reset to null, decrease currentSplitIndex
- * and update currentSplitName. Skipsplit afaics does nothing?? Not even increase currentSplitIndex?
- * Might have to recheck that
+ * and update currentSplitName.
  */
 char* build_therun_live_payload(ls_timer* timer, int source)
 {
@@ -102,7 +101,14 @@ char* build_therun_live_payload(ls_timer* timer, int source)
     }
     json_object_set_new(root, "runData", runData);
 
-    json_object_set_new(root, "currentTime", time_to_ms(timer->realTime)); // This now changed because we have separate gameTime and realTime, redo this part
+    json_object_set_new(root, "timingMethod", json_integer(timer->usingGameTime)); // NYI, set in Compare Against option in RMB menu in LiveSplit, 0 for RTA, 1 for IGT
+    if (timer->usingGameTime) {
+        json_object_set_new(root, "currentTime", time_to_ms(timer->gameTime)); // This now changed because we have separate gameTime and realTime, redo this part
+        json_object_set_new(root, "currentDuration", time_to_ms(timer->gameTime)); // NYI, Time with pauses, for now just time, also redo for gameTime/realTime
+    } else {
+        json_object_set_new(root, "currentTime", time_to_ms(timer->realTime)); // This now changed because we have separate gameTime and realTime, redo this part
+        json_object_set_new(root, "currentDuration", time_to_ms(timer->realTime)); // NYI, Time with pauses, for now just time, also redo for gameTime/realTime
+    }
     if (source == 2) {
         json_object_set_new(root, "currentSplitName", json_string(""));
         json_object_set_new(root, "currentSplitIndex", json_integer(-1));
@@ -110,8 +116,6 @@ char* build_therun_live_payload(ls_timer* timer, int source)
         json_object_set_new(root, "currentSplitName", json_string(timer->game->split_titles[timer->curr_split]));
         json_object_set_new(root, "currentSplitIndex", json_integer(timer->curr_split));
     }
-    json_object_set_new(root, "timingMethod", json_integer(0)); // NYI, set in Compare Against option in RMB menu in LiveSplit, 0 for RTA, 1 for IGT
-    json_object_set_new(root, "currentDuration", time_to_ms(timer->realTime)); // NYI, Time with pauses, for now just time, also redo for gameTime/realTime
     char start_time_str[32];
     snprintf(start_time_str, sizeof(start_time_str), "/Date(%lld)/", (long long)real_epoch_start_ms);
     json_object_set_new(root, "startTime", json_string(start_time_str)); // NYI, this is timestamp in ms, formatted as a string like "\/Date(1772038944242)\/"

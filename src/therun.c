@@ -77,21 +77,25 @@ char* build_therun_live_payload(ls_timer* timer, int source)
     json_object_set_new(root, "metadata", metadata);
 
     json_t* runData = json_array();
-    for (int i = 0; i < timer->game->split_count; i++) {
+    for (unsigned int i = 0; i < timer->game->split_count; i++) {
         json_t* segment = json_object();
         json_object_set_new(segment, "name", json_string(timer->game->split_titles[i]));
         json_object_set_new(segment, "splitTime", time_to_ms(timer->split_times[i]));
-        json_object_set_new(segment, "pbSplitTime", time_to_ms(timer->best_splits[i])); // is this correct? Subject to test out
-        json_object_set_new(segment, "bestPossible", time_to_ms(timer->best_segments[i]));
+        json_object_set_new(segment, "pbSplitTime", time_to_ms(timer->split_times[i])); // I believe these 3 are correct this way around?
+        json_object_set_new(segment, "bestPossible", time_to_ms(timer->best_splits[i]));
         // I have tried setting comparisons with some custom data, but nothing interesting showed up on the site, best to recreate what info is sent from Livesplit to the best of capabilities
         json_t* comparisons = json_array();
         json_t* personalbest = json_object();
         json_object_set_new(personalbest, "name", json_string("Personal Best"));
-        json_object_set_new(personalbest, "time", time_to_ms(timer->best_splits[i]));
+        json_object_set_new(personalbest, "time", time_to_ms(timer->split_times[i]));
+        json_t* besttime = json_object();
+        json_object_set_new(besttime, "name", json_string("Best Time"));
+        json_object_set_new(besttime, "time", time_to_ms(timer->best_splits[i]));
         json_t* bestsegment = json_object();
-        json_object_set_new(bestsegment, "name", json_string("Best Segments"));
+        json_object_set_new(bestsegment, "name", json_string("Best Segment"));
         json_object_set_new(bestsegment, "time", time_to_ms(timer->best_segments[i]));
         json_array_append_new(comparisons, personalbest);
+        json_array_append_new(comparisons, besttime);
         json_array_append_new(comparisons, bestsegment);
         json_object_set_new(segment, "comparisons", comparisons); // Best effort, neither Personal Best or Best Segment are 100% corrent with how LiveSplit does it, and Averages does not exist yet
         json_array_append_new(runData, segment);
@@ -99,7 +103,7 @@ char* build_therun_live_payload(ls_timer* timer, int source)
     }
     json_object_set_new(root, "runData", runData);
 
-    json_object_set_new(root, "currentTime", time_to_ms(timer->time));
+    json_object_set_new(root, "currentTime", time_to_ms(timer->realTime)); // This now changed because we have separate gameTime and realTime, redo this part
     if (source == 2) {
         json_object_set_new(root, "currentSplitName", json_string(""));
         json_object_set_new(root, "currentSplitIndex", json_integer(-1));
@@ -108,7 +112,7 @@ char* build_therun_live_payload(ls_timer* timer, int source)
         json_object_set_new(root, "currentSplitIndex", json_integer(timer->curr_split));
     }
     json_object_set_new(root, "timingMethod", json_integer(0)); // NYI, set in Compare Against option in RMB menu in LiveSplit, 0 for RTA, 1 for IGT
-    json_object_set_new(root, "currentDuration", time_to_ms(timer->time)); // NYI, Time with pauses, for now just time
+    json_object_set_new(root, "currentDuration", time_to_ms(timer->realTime)); // NYI, Time with pauses, for now just time, also redo for gameTime/realTime
     char start_time_str[32];
     snprintf(start_time_str, sizeof(start_time_str), "/Date(%lld)/", (long long)real_epoch_start_ms);
     json_object_set_new(root, "startTime", json_string(start_time_str)); // NYI, this is timestamp in ms, formatted as a string like "\/Date(1772038944242)\/"

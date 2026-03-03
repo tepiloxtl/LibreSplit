@@ -11,7 +11,7 @@
  */
 typedef struct LSSplits {
     LSComponent base; /*!< The base struct that is extended */
-    int split_count; /*!< The number of splits */
+    unsigned int split_count; /*!< The number of splits */
     GtkWidget* container; /*!< The container for the splits */
     GtkWidget* splits;
     GtkWidget* split_last;
@@ -144,7 +144,6 @@ static void splits_show_game(LSComponent* self_, const ls_game* game,
 {
     LSSplits* self = (LSSplits*)self_;
     char str[256];
-    int i;
     self->split_count = game->split_count;
 
     self->split_rows = calloc(self->split_count, sizeof(GtkWidget*));
@@ -180,7 +179,7 @@ static void splits_show_game(LSComponent* self_, const ls_game* game,
 
     GString* icons_css_src = g_string_new(".split-icon { background-repeat: no-repeat; background-position: center; min-width: 20px; min-height: 20px; background-size: 20px; margin-right: 4px; }");
 
-    for (i = 0; i < self->split_count; ++i) {
+    for (unsigned int i = 0; i < self->split_count; ++i) {
         self->split_rows[i] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
         add_class(self->split_rows[i], "split");
         gtk_widget_set_hexpand(self->split_rows[i], TRUE);
@@ -271,7 +270,8 @@ static void splits_show_game(LSComponent* self_, const ls_game* game,
     }
 
     gtk_widget_show(self->splits);
-    splits_trailer(self_);
+    if (self->split_count)
+        splits_trailer(self_);
 }
 
 /**
@@ -310,10 +310,9 @@ static void splits_draw(LSComponent* self_, const ls_game* game, const ls_timer*
 {
     LSSplits* self = (LSSplits*)self_;
     char str[256];
-    int i;
-    for (i = 0; i < self->split_count; ++i) {
+    for (unsigned int i = 0; i < self->split_count; ++i) {
         if (i == timer->curr_split
-            && timer->start_time) {
+            && timer->started) {
             add_class(self->split_rows[i], "current-split");
         } else {
             remove_class(self->split_rows[i], "current-split");
@@ -377,7 +376,7 @@ static void splits_draw(LSComponent* self_, const ls_game* game, const ls_timer*
     if (self->split_count) {
         int width;
         int time_width = 0, delta_width = 0;
-        for (i = 0; i < self->split_count; ++i) {
+        for (unsigned int i = 0; i < self->split_count; ++i) {
             width = gtk_widget_get_allocated_width(self->split_deltas[i]);
             if (width > delta_width) {
                 delta_width = width;
@@ -387,7 +386,7 @@ static void splits_draw(LSComponent* self_, const ls_game* game, const ls_timer*
                 time_width = width;
             }
         }
-        for (i = 0; i < self->split_count; ++i) {
+        for (unsigned int i = 0; i < self->split_count; ++i) {
             if (delta_width) {
                 gtk_widget_set_size_request(
                     self->split_deltas[i], delta_width, -1);
@@ -401,9 +400,16 @@ static void splits_draw(LSComponent* self_, const ls_game* game, const ls_timer*
         }
     }
 
-    splits_trailer(self_);
+    if (self->split_count)
+        splits_trailer(self_);
 }
 
+/**
+ * Scrolls to the current split if it's not visible.
+ *
+ * @param self_ The splits component itself.
+ * @param timer The timer instance.
+ */
 static void splits_scroll_to_split(LSComponent* self_, const ls_timer* timer)
 {
     LSSplits* self = (LSSplits*)self_;
@@ -412,9 +418,13 @@ static void splits_scroll_to_split(LSComponent* self_, const ls_timer* timer)
     int scroller_h;
     double curr_scroll;
     double min_scroll, max_scroll;
-    int prev = timer->curr_split - 1;
-    int curr = timer->curr_split;
-    int next = timer->curr_split + 1;
+
+    if (timer->game->split_count == 0)
+        return;
+
+    unsigned int prev = timer->curr_split ? timer->curr_split - 1 : 0;
+    unsigned int curr = timer->curr_split;
+    unsigned int next = timer->curr_split + 1;
     if (prev < 0) {
         prev = 0;
     }

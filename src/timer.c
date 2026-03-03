@@ -5,7 +5,6 @@
 #include "timer.h"
 #include "gui/dialogs.h"
 #include "settings/utils.h"
-#include "therun.h"
 
 #include "lasr/auto-splitter.h"
 
@@ -24,11 +23,31 @@
  *
  * @return The current time, in milliseconds
  */
-long long ls_time_now(void)
+static long long ls_time_now(void)
 {
     struct timespec timespec;
     clock_gettime(CLOCK_MONOTONIC, &timespec);
     return timespec.tv_sec * 1000000LL + timespec.tv_nsec / 1000;
+}
+
+/**
+ * Gets the timer current time, either game time or real time depending on the timer state.
+ *
+ * @param timer The timer instance
+ * @param load_removed Whether to subtract load_removed from RTA time
+ * @return The current time
+ */
+inline long long ls_timer_get_time(const ls_timer* timer, bool load_removed)
+{
+    if (timer->usingGameTime) {
+        return timer->gameTime;
+    }
+
+    if (load_removed) {
+        return timer->realTime - timer->loadingTime;
+    }
+
+    return timer->realTime;
 }
 
 /**
@@ -53,17 +72,17 @@ long long ls_time_value(const char* string)
     }
 
     // Split at the decimal point manually
-    char* dot_pos = strchr(string, '.');
+    const char* dot_pos = strchr(string, '.');
     if (dot_pos) {
         strncpy(seconds_part, string, dot_pos - string);
         seconds_part[dot_pos - string] = '\0';
 
         // Manually parse the fractional part to avoid locale issues
-        char* frac_part = dot_pos + 1;
+        const char* frac_part = dot_pos + 1;
         subseconds_part = 0.0;
         double multiplier = 0.1;
 
-        for (char* p = frac_part; *p && *p >= '0' && *p <= '9'; p++) {
+        for (char* p = (char*)frac_part; *p && *p >= '0' && *p <= '9'; p++) {
             subseconds_part += (*p - '0') * multiplier;
             multiplier *= 0.1;
         }
@@ -195,9 +214,13 @@ void ls_delta_string(char* string, long long time)
     ls_time_string_format(string, NULL, time, 0, 1, 1);
 }
 
+/**
+ * Frees the memory allocated for a game struct.
+ *
+ * @param game
+ */
 void ls_game_release(const ls_game* game)
 {
-    int i;
     if (game->path) {
         free(game->path);
     }
@@ -211,7 +234,7 @@ void ls_game_release(const ls_game* game)
         free(game->theme_variant);
     }
     if (game->split_titles) {
-        for (i = 0; i < game->split_count; ++i) {
+        for (unsigned int i = 0; i < game->split_count; ++i) {
             if (game->split_titles[i]) {
                 free(game->split_titles[i]);
                 free(game->split_icon_paths[i]);
@@ -237,7 +260,6 @@ int ls_game_create(ls_game** game_ptr, const char* path, char** error_msg)
 {
     int error = 0;
     ls_game* game;
-    int i;
     json_t* json = 0;
     json_t* ref;
     json_error_t json_error;
@@ -364,7 +386,7 @@ int ls_game_create(ls_game** game_ptr, const char* path, char** error_msg)
         }
         game->contains_icons = false;
         // copy splits
-        for (i = 0; i < game->split_count; ++i) {
+        for (unsigned int i = 0; i < game->split_count; ++i) {
             json_t* split;
             json_t* split_ref;
             split = json_array_get(ref, i);
@@ -439,8 +461,13 @@ game_create_done:
     return error;
 }
 
-void ls_game_update_splits(ls_game* game,
-    const ls_timer* timer)
+/**
+ * Update the splits of a game based on the current timer.
+ *
+ * @param game The game whose splits are to be updated.
+ * @param timer The timer instance
+ */
+void ls_game_update_splits(ls_game* game, const ls_timer* timer)
 {
     if (timer->curr_split) {
         int size;
@@ -455,7 +482,7 @@ void ls_game_update_splits(ls_game* game,
             memcpy(game->split_times, timer->split_times, size);
         }
         memcpy(game->segment_times, timer->segment_times, size);
-        for (int i = 0; i < game->split_count; ++i) {
+        for (unsigned int i = 0; i < game->split_count; ++i) {
             if (timer->split_times[i] < game->best_splits[i]) {
                 game->best_splits[i] = timer->split_times[i];
             }
@@ -498,7 +525,6 @@ int ls_game_save(const ls_game* game)
     char str[256];
     json_t* json = json_object();
     json_t* splits = json_array();
-    int i;
     if (game->title) {
         json_object_set_new(json, "title", json_string(game->title));
     }
@@ -518,7 +544,7 @@ int ls_game_save(const ls_game* game)
         ls_time_string_serialized(str, game->start_delay);
         json_object_set_new(json, "start_delay", json_string(str));
     }
-    for (i = 0; i < game->split_count; ++i) {
+    for (unsigned int i = 0; i < game->split_count; ++i) {
         json_t* split = json_object();
         json_object_set_new(split, "title", json_string(game->split_titles[i]));
         json_object_set_new(split, "icon", json_string(game->split_icon_paths[i]));
@@ -565,12 +591,12 @@ int ls_game_save(const ls_game* game)
 
 int ls_run_save(ls_timer* timer, const char* reason)
 {
-    if (timer->time == 0)
+    if (ls_timer_get_time(timer, true) == 0)
         return 0;
 
     int error = 0;
     char final_time_str[128];
-    ls_time_string_serialized(final_time_str, timer->time);
+    ls_time_string_serialized(final_time_str, ls_timer_get_time(timer, true));
 
     // Root JSON Object
     json_t* json = json_object();
@@ -591,7 +617,7 @@ int ls_run_save(ls_timer* timer, const char* reason)
     // Splits Array
     json_t* splits = json_array();
 
-    for (int i = 0; i < timer->game->split_count; i++) {
+    for (unsigned int i = 0; i < timer->game->split_count; i++) {
         json_t* split = json_object();
 
         // Title
@@ -652,6 +678,11 @@ int ls_run_save(ls_timer* timer, const char* reason)
     return error;
 }
 
+/**
+ * Frees all the timer information, but not itself
+ *
+ * @param timer The timer instance
+ */
 void ls_timer_release(const ls_timer* timer)
 {
     if (timer->split_times) {
@@ -677,15 +708,25 @@ void ls_timer_release(const ls_timer* timer)
     }
 }
 
+/**
+ * Resets the whole timer back to 0, ready for a new run
+ *
+ * @param timer The timer instance
+ */
 static void reset_timer(ls_timer* timer)
 {
-    int i;
-    int size;
     timer->started = 0;
-    timer->start_time = 0;
+    atomic_store(&run_started, false);
+    timer->running = 0;
+    atomic_store(&run_running, false);
     timer->curr_split = 0;
-    timer->time = -timer->game->start_delay;
-    size = timer->game->split_count * sizeof(long long);
+    timer->realTime = -timer->game->start_delay; // Start delay only applies to real time only
+    timer->gameTime = 0;
+    timer->usingGameTime = false;
+    timer->loading = false;
+    timer->loadingTime = 0;
+    timer->last_tick = 0;
+    int size = timer->game->split_count * sizeof(long long);
     memcpy(timer->split_times, timer->game->split_times, size);
     memset(timer->split_deltas, 0, size);
     memcpy(timer->segment_times, timer->game->segment_times, size);
@@ -695,7 +736,7 @@ static void reset_timer(ls_timer* timer)
     size = timer->game->split_count * sizeof(int);
     memset(timer->split_info, 0, size);
     timer->sum_of_bests = 0;
-    for (i = 0; i < timer->game->split_count; ++i) {
+    for (unsigned int i = 0; i < timer->game->split_count; ++i) {
         // Check no segments are erroring with LLONG_MAX
         if (timer->best_segments[i] && timer->best_segments[i] < LLONG_MAX) {
             timer->sum_of_bests += timer->best_segments[i];
@@ -706,9 +747,15 @@ static void reset_timer(ls_timer* timer)
             break;
         }
     }
-    therun_trigger_update(timer, 2);
 }
 
+/**
+ * Creates a timer instance linked to a game instance, allocating necessary memory
+ *
+ * @param timer_ptr Apointer to where the allocated timer instance should be stored
+ * @param game The game instance to link the timer to
+ * @return Whether the timer creation had an error or not
+ */
 int ls_timer_create(ls_timer** timer_ptr, ls_game* game)
 {
     int error = 0;
@@ -775,14 +822,22 @@ timer_create_done:
     return error;
 }
 
-void ls_timer_step(ls_timer* timer, long long now)
+/**
+ * Executes a timer step, calculating deltas, times, and split infos
+ *
+ * @param timer The timer instance
+ */
+void ls_timer_step(ls_timer* timer)
 {
-    timer->now = now;
+    long long now = ls_time_now();
     if (timer->running) {
-        long long delta = timer->now - timer->start_time;
-        timer->time += delta; // Accumulate the elapsed time
+        long long delta = timer->last_tick ? now - timer->last_tick : 0;
+        timer->realTime += delta; // Accumulate the elapsed time
+        if (timer->loading) {
+            timer->loadingTime += delta; // Accumulate loading time if currently loading
+        }
         if (timer->curr_split < timer->game->split_count) {
-            timer->split_times[timer->curr_split] = timer->time;
+            timer->split_times[timer->curr_split] = timer->usingGameTime ? timer->gameTime : timer->realTime - timer->loadingTime;
             // calc delta and check it's not an error of LLONG_MAX
             if (timer->game->split_times[timer->curr_split] && timer->game->split_times[timer->curr_split] < LLONG_MAX) {
                 timer->split_deltas[timer->curr_split] = timer->split_times[timer->curr_split]
@@ -825,180 +880,231 @@ void ls_timer_step(ls_timer* timer, long long now)
             }
         }
     }
-    timer->start_time = now; // Update the start time for the next iteration
+    timer->last_tick = now; // Update the start time for the next iteration
 }
 
+/**
+ * Starts the timer, setting it to running and incrementing attempt count if not already started
+ *
+ * @param timer The timer instance
+ * @return Whether the timer is now running
+ */
 int ls_timer_start(ls_timer* timer)
 {
+    // TODO: Allow starting when split_count is 0 for splitless runs, other stuff has to change for this to work (components, timer logic, etc)
     if (timer->curr_split < timer->game->split_count) {
         if (!timer->started) {
             ++*timer->attempt_count;
             timer->started = 1;
-            therun_trigger_update(timer, 0);
+            atomic_store(&run_started, true);
         }
-        timer->running = 1;
+        timer->running = true;
+        atomic_store(&run_running, true);
     }
     return timer->running;
 }
 
+/**
+ * Performs a split
+ *
+ * @param timer The timer instance
+ * @return The current split index after splitting, 0 if no split happened
+ */
 int ls_timer_split(ls_timer* timer)
 {
-    if (timer->time > 0) {
-        if (timer->curr_split < timer->game->split_count) {
-            int i;
-            // check for best split and segment
-            if (!timer->best_splits[timer->curr_split]
-                || timer->split_times[timer->curr_split]
-                    < timer->best_splits[timer->curr_split]) {
-                timer->best_splits[timer->curr_split] = timer->split_times[timer->curr_split];
-                timer->split_info[timer->curr_split]
-                    |= LS_INFO_BEST_SPLIT;
-            }
-            if (!timer->best_segments[timer->curr_split]
-                || timer->segment_times[timer->curr_split]
-                    < timer->best_segments[timer->curr_split]) {
-                timer->best_segments[timer->curr_split] = timer->segment_times[timer->curr_split];
-                timer->split_info[timer->curr_split]
-                    |= LS_INFO_BEST_SEGMENT;
-            }
-            // update sum of bests
+    if (ls_timer_get_time(timer, true) <= 0) {
+        return 0;
+    }
+
+    if (timer->curr_split >= timer->game->split_count) {
+        return 0;
+    }
+
+    // check for best split and segment
+    if (!timer->best_splits[timer->curr_split]
+        || timer->split_times[timer->curr_split]
+            < timer->best_splits[timer->curr_split]) {
+        timer->best_splits[timer->curr_split] = timer->split_times[timer->curr_split];
+        timer->split_info[timer->curr_split]
+            |= LS_INFO_BEST_SPLIT;
+    }
+    if (!timer->best_segments[timer->curr_split]
+        || timer->segment_times[timer->curr_split]
+            < timer->best_segments[timer->curr_split]) {
+        timer->best_segments[timer->curr_split] = timer->segment_times[timer->curr_split];
+        timer->split_info[timer->curr_split]
+            |= LS_INFO_BEST_SEGMENT;
+    }
+    // update sum of bests
+    timer->sum_of_bests = 0;
+    for (unsigned int i = 0; i < timer->game->split_count; ++i) {
+        // Check if any best segment is missing/LLONG_MAX
+        if (timer->best_segments[i] && timer->best_segments[i] < LLONG_MAX) {
+            timer->sum_of_bests += timer->best_segments[i];
+        } else if (timer->game->best_segments[i] && timer->game->best_segments[i] < LLONG_MAX) {
+            timer->sum_of_bests += timer->game->best_segments[i];
+        } else {
             timer->sum_of_bests = 0;
-            for (i = 0; i < timer->game->split_count; ++i) {
-                // Check if any best segment is missing/LLONG_MAX
-                if (timer->best_segments[i] && timer->best_segments[i] < LLONG_MAX) {
-                    timer->sum_of_bests += timer->best_segments[i];
-                } else if (timer->game->best_segments[i] && timer->game->best_segments[i] < LLONG_MAX) {
-                    timer->sum_of_bests += timer->game->best_segments[i];
-                } else {
-                    timer->sum_of_bests = 0;
-                    break;
-                }
-            }
-
-            ++timer->curr_split;
-            // stop timer if last split
-            if (timer->curr_split == timer->game->split_count) {
-                // Increment finished_count
-                ++*timer->finished_count;
-                ls_timer_stop(timer);
-                atomic_store(&run_finished, true);
-                ls_game_update_splits((ls_game*)timer->game, timer);
-                if (cfg.libresplit.save_run_history.value.b) {
-                    ls_run_save(timer, "FINISHED");
-                }
-            }
-            // char* therun;
-            therun_trigger_update(timer, 0);
-            // fprintf(stderr, therun);
-            return timer->curr_split;
+            break;
         }
     }
-    return 0;
-}
 
-int ls_timer_skip(ls_timer* timer)
-{
-    if (timer->time > 0) {
-        if (timer->curr_split + 1 == timer->game->split_count) {
-            // This is the last split, do a normal split instead of skipping
-            return ls_timer_split(timer);
-        }
-        if (timer->curr_split < timer->game->split_count) {
-            timer->split_times[timer->curr_split] = 0;
-            timer->split_deltas[timer->curr_split] = 0;
-            timer->split_info[timer->curr_split] = 0;
-            timer->segment_times[timer->curr_split] = 0;
-            timer->segment_deltas[timer->curr_split] = 0;
-            ++timer->curr_split;
-            therun_trigger_update(timer, 7);
-            return timer->curr_split;
+    ++timer->curr_split;
+    // stop timer if last split
+    if (timer->curr_split == timer->game->split_count) {
+        // Increment finished_count
+        ++*timer->finished_count;
+        ls_timer_stop(timer);
+        ls_game_update_splits((ls_game*)timer->game, timer);
+        if (cfg.libresplit.save_run_history.value.b) {
+            ls_run_save(timer, "FINISHED");
         }
     }
-    return 0;
-}
-
-int ls_timer_unsplit(ls_timer* timer)
-{
-    if (timer->curr_split) {
-        int i;
-        int curr = --timer->curr_split;
-        for (i = curr; i < timer->game->split_count; ++i) {
-            timer->split_times[i] = timer->game->split_times[i];
-            timer->split_deltas[i] = 0;
-            timer->split_info[i] = 0;
-            timer->segment_times[i] = timer->game->segment_times[i];
-            timer->segment_deltas[i] = 0;
-        }
-        if (timer->curr_split + 1 == timer->game->split_count) {
-            timer->running = 1;
-        }
-        therun_trigger_update(timer, 6);
-        return timer->curr_split;
-    }
-    return 0;
-}
-
-void ls_timer_stop(ls_timer* timer)
-{
-    timer->running = 0;
-    atomic_store(&run_started, false);
-}
-
-int ls_timer_reset(ls_timer* timer)
-{
-    if (!timer->running) {
-        if (timer->started && timer->time <= 0) {
-            return ls_timer_cancel(timer);
-        }
-        if (timer->curr_split < timer->game->split_count) {
-            if (cfg.libresplit.save_run_history.value.b) {
-                ls_run_save(timer, "RESET");
-            }
-        }
-        if (ls_timer_has_gold_split(timer)) {
-            bool user_reset = true;
-            if (cfg.libresplit.ask_on_gold.value.b) {
-                user_reset = display_confirm_reset_dialog();
-            }
-            if (user_reset) {
-                reset_timer(timer);
-                return 1;
-            } else {
-                return 0;
-            }
-        }
-        reset_timer(timer);
-        return 1;
-    }
-    return 0;
-}
-
-int ls_timer_cancel(ls_timer* timer)
-{
-    if (!timer->running) {
-        if (timer->started) {
-            if (*timer->attempt_count > 0) {
-                --*timer->attempt_count;
-            }
-        }
-        reset_timer(timer);
-        return 1;
-    }
-    return 0;
+    return timer->curr_split;
 }
 
 /**
- * Checks if a run is started, either manually or by
- * the auto-splitter
+ * Skips a split, moving the timer forward one split and setting the split and segment times and deltas to 0
  *
- * @param timer Pointer to the timer instance (used for RTA)
- *
- * @returns True if a run is started, false otherwise
+ * @param timer The timer instance
+ * @return The current split index after skipping, 0 if no skip happened
  */
-bool is_run_started(ls_timer* timer)
+int ls_timer_skip(ls_timer* timer)
 {
-    if (timer == NULL) {
-        return false;
+    if (ls_timer_get_time(timer, false) <= 0)
+        return 0;
+
+    if (timer->curr_split + 1 == timer->game->split_count) {
+        // This is the last split, do a normal split instead of skipping
+        return ls_timer_split(timer);
     }
-    return timer->running || atomic_load(&run_started);
+
+    if (timer->curr_split >= timer->game->split_count) {
+        return 0;
+    }
+
+    timer->split_times[timer->curr_split] = 0;
+    timer->split_deltas[timer->curr_split] = 0;
+    timer->split_info[timer->curr_split] = 0;
+    timer->segment_times[timer->curr_split] = 0;
+    timer->segment_deltas[timer->curr_split] = 0;
+    return ++timer->curr_split;
+}
+
+/**
+ * Unsplits the last split, moving the timer back one split and resetting the split and segment times and deltas to the game times
+ *
+ * @param timer The timer instance
+ * @return The current split index after unsplitting, the same or 0 if no unsplit happened
+ */
+int ls_timer_unsplit(ls_timer* timer)
+{
+    if (timer->curr_split == 0) {
+        return 0;
+    }
+
+    unsigned int curr = --timer->curr_split;
+    for (unsigned int i = curr; i < timer->game->split_count; ++i) {
+        timer->split_times[i] = timer->game->split_times[i];
+        timer->split_deltas[i] = 0;
+        timer->split_info[i] = 0;
+        timer->segment_times[i] = timer->game->segment_times[i];
+        timer->segment_deltas[i] = 0;
+    }
+    if (timer->curr_split + 1 == timer->game->split_count) {
+        timer->running = true;
+        atomic_store(&run_running, true);
+    }
+    return timer->curr_split;
+}
+
+/**
+ * Marks the timer as loading, incrementing loading time in step until unpaused
+ *
+ * @param timer The timer instance
+ */
+void ls_timer_pause(ls_timer* timer)
+{
+    timer->loading = 1;
+}
+
+/**
+ * Marks the timer as not loading, not incrementing loading time
+ *
+ * @param timer The timer instance
+ */
+void ls_timer_unpause(ls_timer* timer)
+{
+    timer->loading = 0;
+}
+
+/**
+ * Stops the timer from ticking
+ *
+ * @param timer The timer instance
+ */
+void ls_timer_stop(ls_timer* timer)
+{
+    timer->running = false;
+    atomic_store(&run_running, false);
+}
+
+/**
+ * Resets all the timer and splits back to 0
+ *
+ * Also saves run
+ *
+ * @param timer The timer instance
+ * @return Whether the reset was successful, will fail if the timer is currently running/reset cancelled
+ */
+int ls_timer_reset(ls_timer* timer)
+{
+    // Disallow resets while running
+    if (timer->running)
+        return 0;
+
+    if (timer->started && ls_timer_get_time(timer, true) <= 0) {
+        return ls_timer_cancel(timer);
+    }
+
+    if (timer->curr_split < timer->game->split_count) {
+        if (cfg.libresplit.save_run_history.value.b) {
+            ls_run_save(timer, "RESET");
+        }
+    }
+
+    // Warn if the reset will lose a gold split, and allow the user to cancel the reset if they want to keep it
+    if (ls_timer_has_gold_split(timer)) {
+        bool user_reset = true;
+        if (cfg.libresplit.ask_on_gold.value.b) {
+            user_reset = display_confirm_reset_dialog();
+        }
+        if (!user_reset) {
+            return 0;
+        }
+    }
+
+    reset_timer(timer);
+    return 1;
+}
+
+/**
+ * Cancels the current run, ignoring attempt and resetting timer
+ *
+ * @param timer The timer instance
+ * @return Whether the cancel was successful, will fail if the timer is currently running
+ */
+int ls_timer_cancel(ls_timer* timer)
+{
+    // Disallow resets while running
+    if (timer->running)
+        return 0;
+
+    if (timer->started) {
+        if (*timer->attempt_count > 0) {
+            --*timer->attempt_count;
+        }
+    }
+    reset_timer(timer);
+    return 1;
 }

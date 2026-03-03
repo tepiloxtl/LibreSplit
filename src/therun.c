@@ -83,7 +83,6 @@ char* build_therun_live_payload(ls_timer* timer, int source)
         json_object_set_new(segment, "splitTime", time_to_ms(timer->split_times[i]));
         json_object_set_new(segment, "pbSplitTime", time_to_ms(timer->split_times[i])); // I believe these 3 are correct this way around?
         json_object_set_new(segment, "bestPossible", time_to_ms(timer->best_splits[i]));
-        // I have tried setting comparisons with some custom data, but nothing interesting showed up on the site, best to recreate what info is sent from Livesplit to the best of capabilities
         json_t* comparisons = json_array();
         json_t* personalbest = json_object();
         json_object_set_new(personalbest, "name", json_string("Personal Best"));
@@ -155,7 +154,8 @@ char* build_therun_live_payload(ls_timer* timer, int source)
     return payload;
 }
 
-static size_t curl_discard_response(void *ptr, size_t size, size_t nmemb, void *userdata) {
+static size_t curl_discard_response(void* ptr, size_t size, size_t nmemb, void* userdata)
+{
     return size * nmemb;
 }
 

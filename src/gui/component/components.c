@@ -87,7 +87,7 @@ bool ls_component_is_valid(const char* name)
     }
 
     // A loop over `ls_components` is fine, we could have 1000 components and O(1) would still be the same as O(n) realistically.
-    for (int i = 0; i < ls_components.enabled; ++i) {
+    for (int i = 0; i < ls_components.count; ++i) {
         // here we do ls_components count - 1 since we can ignore the null entry terminator as we have the actual count.
         if (strcmp(name, ls_components.components[i].name) == 0) {
             return true;
@@ -120,6 +120,19 @@ LSComponentAvailable* ls_component_get(const char* name)
 }
 
 /**
+ * @brief Call the component's delete method when the components list is being destroyed.
+ *
+ * @param data The component to cleanup.
+ */
+void ls_component_destroy(gpointer data)
+{
+    LSComponent* component = data;
+    if (component && component->ops && component->ops->delete) {
+        component->ops->delete(component);
+    }
+}
+
+/**
  * Initializes the default libresplit components.
  *
  * Might be a future hook point for customization.
@@ -130,7 +143,7 @@ bool init_components(void)
 {
     register_component("title", ls_component_title_new);
     register_component("splits", ls_component_splits_new);
-    register_component("timer", ls_component_timer_new);
+    // register_component("timer", ls_component_timer_new);
     register_component("detailed-timer", ls_component_detailed_timer_new);
     register_component("prev-segment", ls_component_prev_segment_new);
     register_component("best-sum", ls_component_best_sum_new);

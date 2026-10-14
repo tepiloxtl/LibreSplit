@@ -549,7 +549,6 @@ gboolean ls_app_window_draw(gpointer data)
 static void ls_app_window_init(LSAppWindow* win)
 {
     LOG_DEBUG("Initializing LibreSplit Window");
-    int i;
 
     win->display = gdk_display_get_default();
     win->reset_style = NULL;
@@ -634,23 +633,10 @@ static void ls_app_window_init(LSAppWindow* win)
     gtk_widget_set_vexpand(win->box, TRUE);
     gtk_box_append(GTK_BOX(win->container), win->box);
 
-    // Create all available components (TODO: change this in the future)
-    LOG_DEBUG("Creating components...");
+    // Register built-in components
+    LOG_DEBUG("Initializing components registry...");
     init_components();
     win->components = NULL;
-    for (i = 0; i < ls_components.count; i++) {
-        LSComponent* component = ls_components.components[i].new();
-        if (component) {
-            GtkWidget* widget = component->ops->widget(component);
-            if (widget) {
-                gtk_widget_set_margin_start(widget, WINDOW_PAD);
-                gtk_widget_set_margin_end(widget, WINDOW_PAD);
-                gtk_box_append(GTK_BOX(win->box),
-                    component->ops->widget(component));
-            }
-            win->components = g_list_append(win->components, component);
-        }
-    }
 
     // NOTE: This always creates an empty footer, no matter how many
     //  ^ "footers" are available, which may give issues with theming

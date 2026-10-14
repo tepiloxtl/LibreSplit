@@ -5,6 +5,7 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <lauxlib.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,27 @@
 #include <unistd.h>
 
 extern atomic_bool auto_splitter_enabled; /*!< Defines if the auto splitter is enabled */
+
+/**
+ * @brief Free the process name which was duplicated in memory and clear the process.
+ */
+void clear_process(void)
+{
+    free(process.name);
+    process = (game_process) { 0 };
+}
+
+static void set_process_name(lua_State* L)
+{
+    char* name = strdup(luaL_checkstring(L, 1));
+    if (!name) {
+        luaL_error(L, "Unable to allocate the process name");
+        return;
+    }
+
+    free(process.name);
+    process.name = name;
+}
 
 /**
  * Reads the /proc/ directory for all process IDs and tries to identify the searched
@@ -226,7 +248,7 @@ int find_process_id(lua_State* L)
 {
     printf("\033[2J\033[1;1H"); // Clear the console
 
-    process.name = lua_tostring(L, 1);
+    set_process_name(L);
     const char* sort = lua_tostring(L, 2);
 
     if (!sort) {
@@ -257,7 +279,7 @@ int find_cmdline_id(lua_State* L)
 {
     printf("\033[2J\033[1;1H"); // Clear the console
 
-    process.name = lua_tostring(L, 1);
+    set_process_name(L);
     const char* sort = lua_tostring(L, 2);
 
     if (!sort) {

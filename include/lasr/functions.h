@@ -1,6 +1,5 @@
 #pragma once
 
-#include "lasr/functions/bitwise.h"
 #include "lasr/functions/getBaseAddress.h"
 #include "lasr/functions/getMaps.h"
 #include "lasr/functions/getModuleSize.h"

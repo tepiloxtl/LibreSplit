@@ -53,4 +53,8 @@ bool register_component(char*, ls_component_new_func);
 
 bool init_components(void);
 
+bool ls_component_is_valid(const char* name);
+LSComponentAvailable* ls_component_get(const char* name);
+void ls_component_destroy(gpointer data);
+
 #endif /* __COMPONENTS_H__ */

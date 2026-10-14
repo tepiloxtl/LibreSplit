@@ -1,7 +1,8 @@
-#include "gui/theming.h"
-#include "gui/app_window.h"
-#include "gui/widgets/alert.h"
-#include "logging.h"
+#include "include/gui/theming.h"
+#include "include/gui/app_window.h"
+#include "include/gui/widgets/alert.h"
+#include "include/logging.h"
+#include "include/settings/utils.h"
 #include <linux/limits.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -150,7 +151,7 @@ static void load_fallback_theme(LSAppWindow* win)
 {
     GError* gerror = NULL;
     gulong error_handler = g_signal_connect(win->style, "parsing-error", G_CALLBACK(capture_css_error), &gerror);
-    gtk_css_provider_load_from_resource(GTK_CSS_PROVIDER(win->style), LIBRESPLIT_RESOURCES_PREFIX "fallback.css");
+    gtk_css_provider_load_from_resource(GTK_CSS_PROVIDER(win->style), LIBRESPLIT_RESOURCES_PREFIX "themes/fallback.css");
     g_signal_handler_disconnect(win->style, error_handler);
     if (gerror != NULL) {
         g_printerr("Error loading default theme CSS: %s\n", gerror->message);

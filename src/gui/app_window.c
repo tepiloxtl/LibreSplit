@@ -1,22 +1,23 @@
-#include "gui/app_window.h"
-#include "gui/actions.h"
-#include "gui/backends/x11.h"
-#include "gui/component/components.h"
-#include "gui/context_menu.h"
-#include "gui/dialogs.h"
-#include "gui/game.h"
-#include "gui/theming.h"
-#include "gui/timer.h"
-#include "gui/widgets/alert.h"
-#include "keybinds/bind.h"
-#include "keybinds/keybinds_callbacks.h"
-#include "lasr/auto-splitter.h"
-#include "logging.h"
-#include "plugins/plugin_loading.h"
-#include "runs.h"
-#include "settings/settings.h"
-#include "settings/utils.h"
-#include "timer.h"
+#include "include/gui/app_window.h"
+#include "include/gui/actions.h"
+#include "include/gui/backends/x11.h"
+#include "include/gui/component/components.h"
+#include "include/gui/context_menu.h"
+#include "include/gui/dialogs.h"
+#include "include/gui/game.h"
+#include "include/gui/theming.h"
+#include "include/gui/timer.h"
+#include "include/gui/widgets/alert.h"
+#include "include/keybinds/bind.h"
+#include "include/keybinds/keybinds_callbacks.h"
+#include "include/lasr/auto-splitter.h"
+#include "src/layout.h"
+#include "include/logging.h"
+#include "include/plugins/plugin_loading.h"
+#include "include/runs.h"
+#include "include/settings/settings.h"
+#include "include/settings/utils.h"
+#include "include/timer.h"
 
 #include <glib-object.h>
 #include <stdatomic.h>
@@ -174,6 +175,7 @@ void ls_app_window_open(LSAppWindow* win, const char* file)
             }
         }
 
+        ls_load_layout(win, win->game->layout_file);
         atomic_store(&auto_splitter_enabled, cfg.libresplit.auto_splitter_enabled.value.b);
         ls_app_window_show_game(win);
     }
@@ -274,19 +276,6 @@ static void ls_app_window_size_allocate(GtkWidget* widget, int width, int height
     LSAppWindow* win = LS_APP_WINDOW(widget);
     if (win->context_menu != NULL) {
         gtk_popover_present(GTK_POPOVER(win->context_menu));
-    }
-}
-
-/**
- * @brief Call the component's delete method when the window is being disposed.
- *
- * @param data The component to cleanup.
- */
-static void ls_component_destroy(gpointer data)
-{
-    LSComponent* component = data;
-    if (component && component->ops && component->ops->delete) {
-        component->ops->delete(component);
     }
 }
 

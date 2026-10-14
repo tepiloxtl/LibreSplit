@@ -74,6 +74,52 @@ bool register_component(char* name, ls_component_new_func init_func)
 }
 
 /**
+ * @brief Validates if the component name is a valid component that has been registered in `ls_components`
+ *
+ * @param name The name of the component.
+ * @return bool Whether or not the component is valid.
+ */
+bool ls_component_is_valid(const char* name)
+{
+    // No string or empty string is not valid
+    if (name == NULL || name[0] == '\0') {
+        return false;
+    }
+
+    // A loop over `ls_components` is fine, we could have 1000 components and O(1) would still be the same as O(n) realistically.
+    for (int i = 0; i < ls_components.enabled; ++i) {
+        // here we do ls_components count - 1 since we can ignore the null entry terminator as we have the actual count.
+        if (strcmp(name, ls_components.components[i].name) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @brief Gets the component entry from `ls_components` by the provided name
+ * or NULL if the name does not exist.
+ *
+ * @param name The name of the component.
+ * @return LSComponentAvailable* Pointer to the component if found or NULL.
+ */
+LSComponentAvailable* ls_component_get(const char* name)
+{
+    if (name == NULL || name[0] == '\0' || !ls_components.enabled) {
+        return NULL;
+    }
+
+    for (int i = 0; i < ls_components.count; ++i) {
+        if (strcmp(name, ls_components.components[i].name) == 0) {
+            return &ls_components.components[i];
+        }
+    }
+
+    return NULL;
+}
+
+/**
  * Initializes the default libresplit components.
  *
  * Might be a future hook point for customization.
@@ -84,7 +130,7 @@ bool init_components(void)
 {
     register_component("title", ls_component_title_new);
     register_component("splits", ls_component_splits_new);
-    /*register_component("timer", ls_component_timer_new);*/
+    register_component("timer", ls_component_timer_new);
     register_component("detailed-timer", ls_component_detailed_timer_new);
     register_component("prev-segment", ls_component_prev_segment_new);
     register_component("best-sum", ls_component_best_sum_new);

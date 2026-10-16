@@ -11,13 +11,13 @@
 #include "include/keybinds/bind.h"
 #include "include/keybinds/keybinds_callbacks.h"
 #include "include/lasr/auto-splitter.h"
-#include "src/layout.h"
 #include "include/logging.h"
 #include "include/plugins/plugin_loading.h"
 #include "include/runs.h"
 #include "include/settings/settings.h"
 #include "include/settings/utils.h"
 #include "include/timer.h"
+#include "src/layout.h"
 
 #include <glib-object.h>
 #include <stdatomic.h>

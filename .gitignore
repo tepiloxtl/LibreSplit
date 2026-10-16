@@ -1,6 +1,7 @@
 build/
 .cache/
 compile_commands.json
+*.so
 
 # AppImage stuff
 AppDir/

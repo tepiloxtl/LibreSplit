@@ -103,7 +103,7 @@ char* build_therun_live_payload(const ls_timer* timer, int source)
         json_object_set_new(personalbest, "time", time_to_ms(ls_time_get_by_method(timer->split_times[i], timer->game->comparison_method)));
         json_t* besttime = json_object();
         json_object_set_new(besttime, "name", json_string("Best Time"));
-        json_object_set_new(besttime, "time", ttime_to_ms(ls_time_get_by_method(timer->best_splits[i], timer->game->comparison_method)));
+        json_object_set_new(besttime, "time", time_to_ms(ls_time_get_by_method(timer->best_splits[i], timer->game->comparison_method)));
         json_t* bestsegment = json_object();
         json_object_set_new(bestsegment, "name", json_string("Best Segment"));
         json_object_set_new(bestsegment, "time", time_to_ms(ls_time_get_by_method(timer->best_segments[i], timer->game->comparison_method)));

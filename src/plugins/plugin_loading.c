@@ -12,11 +12,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const LSUtilAPI util_api = {
+    .time_get_by_method = ls_time_get_by_method
+};
+
 PlugAPI api = {
     .abi_version = 1, // v0.1
     .register_lua_function = register_lua_function,
     .register_event_hook = register_event_hook,
     .register_component = register_plugin_component,
+    .util = util_api,
 };
 
 static PluginRegistry plugin_registry = {
@@ -114,7 +119,7 @@ static int get_plugin_metadata(const char* path, char** name, char** description
     // Loads the plugin lazily, not executing any code
     void* plugin_handle = dlopen(path, RTLD_LAZY);
     if (!plugin_handle) {
-        LOG_WARNF("Unable to open plugin for inspection: %s - ", path, dlerror());
+        LOG_WARNF("Unable to open plugin for inspection: %s - %s", path, dlerror());
         return -1;
     }
 
@@ -327,7 +332,7 @@ void load_plugins(void)
             LOG_WARN("Could not copy plugin path. Path may be too long.");
             return;
         }
-        ssize_t n = snprintf(path, sizeof(path), "%s/%s", plugdir, ent->d_name);
+        ssize_t n = snprintf(path, sizeof(path), "%s%s", plugdir, ent->d_name);
         if (n < 0 || (size_t)n >= sizeof(plugdir)) {
             LOG_WARN("Could not copy plugin path or buffer overflow detected.");
             return;
@@ -386,27 +391,25 @@ int unload_plugins(void)
         // Purge stale errors
         dlerror();
         void* sym = dlsym(plugin_registry.plugins[i].handle, "plug_shutdown");
-        const char* err = dlerror();
-        if (err) {
-            LOG_WARNF("Loading plugin shutdown symbol failed: %s", err);
+
+        plugin_shutdown_fn shutdown_function = NULL;
+        if (sym) {
+            union shutdown_fn_ptr u;
+            u.obj = sym;
+            shutdown_function = u.fn;
         }
-        union shutdown_fn_ptr u;
-        u.obj = sym;
-        plugin_shutdown_fn shutdown_function = u.fn;
+
         if (!shutdown_function) {
+            // plug_shutdown is optional
             if (plugin_registry.plugins[i].path) {
-                LOG_WARNF("No shutdown function defined for plugin %s", plugin_registry.plugins[i].path);
+                LOG_DEBUGF("Plugin %s defines no shutdown function, skipping",
+                    plugin_registry.plugins[i].path);
             } else {
-                LOG_WARN("No shutdown function defined for unknown plugin.")
+                LOG_DEBUG("Plugin with unknown path defines no shutdown function, skipping");
             }
-        } else {
-            if (shutdown_function() != 0) {
-                if (plugin_registry.plugins[i].path) {
-                    LOG_WARNF("Shutdown function for plugin %s failed", plugin_registry.plugins[i].path);
-                } else {
-                    LOG_WARN("Shutdown function failed for unknown plugin.")
-                }
-            }
+        } else if (shutdown_function() != 0) {
+            LOG_WARNF("Shutdown function for plugin %s failed",
+                plugin_registry.plugins[i].path);
         }
         if (plugin_registry.plugins[i].path) {
             LOG_DEBUGF("Closing handlers for plugin %s", plugin_registry.plugins[i].path);
@@ -428,6 +431,7 @@ int unload_plugins(void)
     return 0;
 }
 
+// TODO: Change this to be a PlugAPI call, so it doesn't get evaluated for every plugin?
 /**
  * Calls, in turn, all the register_context_menu functions
  * of the plugins, to fill in the Plugins submenu.
@@ -447,9 +451,9 @@ int create_plugin_context_menus(GMenu* parent, GtkWidget* window)
             // Purge stale errors
             dlerror();
             void* sym = dlsym(plugin_registry.plugins[i].handle, "register_context_menu");
-            const char* err = dlerror();
-            if (err) {
-                LOG_WARNF("Error while loading plugin context menu registration function symbol: %s", err);
+            if (!sym) {
+                // Context menu registration is optional
+                LOG_DEBUGF("Plugin %s does not provide a context menu", plugin_registry.plugins[i].path);
                 continue;
             }
 
@@ -457,16 +461,11 @@ int create_plugin_context_menus(GMenu* parent, GtkWidget* window)
             u.obj = sym;
             context_menu_reg_fn registration_function = u.fn;
 
-            if (!registration_function) {
-                LOG_WARN("Cannot load plugin context menu registration function");
-                continue;
-            }
-
             // Register the submenu item
             int result = registration_function(submenu, window);
-
             if (result != 0) {
-                LOG_WARNF("Plugin context menu registration function returned exit code %s", result);
+                LOG_WARNF("Plugin %s context menu registration returned exit code %d",
+                    plugin_registry.plugins[i].path, result);
             }
             submenus++;
         }

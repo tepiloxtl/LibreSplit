@@ -1,3 +1,7 @@
+// This plugin does not work in it's current state
+// My idea is to give plugins access to some internal functions in the PlugAPI interface
+// So plugins can't mose around the entire internals, is this worth something?
+
 #include "lasr/functions/getMaps.h"
 #include "lasr/maps/maps.h"
 #include "plugins/plugin.h"

@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdint.h>
 
 static int64_t real_epoch_start_ms = 0;
 static PlugAPI lsapi;
@@ -60,6 +61,8 @@ json_t* time_to_ms(int64_t microseconds)
 char* build_therun_live_payload(const ls_timer* timer, int source)
 {
     const char* therun_key = getenv("LIBRESPLIT_THERUN_KEY");
+    if (!therun_key || strlen(therun_key) != 36)
+        return NULL;
     if (source == 0) {
         real_epoch_start_ms = (int64_t)time(NULL) * 1000;
     }
@@ -88,7 +91,7 @@ char* build_therun_live_payload(const ls_timer* timer, int source)
     json_object_set_new(metadata, "platform", json_string(""));
     json_object_set_new(metadata, "region", json_string(""));
     json_object_set_new(metadata, "emulator", json_false());
-    json_object_set_new(metadata, "variables", json_string("")); // Empty in my dumps
+    json_object_set_new(metadata, "variables", json_array()); // Empty in my dumps
     json_object_set_new(root, "metadata", metadata);
 
     json_t* runData = json_array();
@@ -96,12 +99,12 @@ char* build_therun_live_payload(const ls_timer* timer, int source)
         json_t* segment = json_object();
         json_object_set_new(segment, "name", json_string(timer->game->split_titles[i]));
         json_object_set_new(segment, "splitTime", time_to_ms(lsapi.util.time_get_by_method(timer->split_times[i], timer->game->comparison_method)));
-        json_object_set_new(segment, "pbSplitTime", time_to_ms(lsapi.util.time_get_by_method(timer->split_times[i], timer->game->comparison_method))); // I believe these 3 are correct this way around?
-        json_object_set_new(segment, "bestPossible", time_to_ms(lsapi.util.time_get_by_method(timer->best_splits[i], timer->game->comparison_method)));
+        json_object_set_new(segment, "pbSplitTime", time_to_ms(lsapi.util.time_get_by_method(timer->game->split_times[i], timer->game->comparison_method))); // I believe these 3 are correct this way around?
+        json_object_set_new(segment, "bestPossible", time_to_ms(lsapi.util.time_get_by_method(timer->best_segments[i], timer->game->comparison_method)));
         json_t* comparisons = json_array();
         json_t* personalbest = json_object();
         json_object_set_new(personalbest, "name", json_string("Personal Best"));
-        json_object_set_new(personalbest, "time", time_to_ms(lsapi.util.time_get_by_method(timer->split_times[i], timer->game->comparison_method)));
+        json_object_set_new(personalbest, "time", time_to_ms(lsapi.util.time_get_by_method(timer->game->split_times[i], timer->game->comparison_method)));
         json_t* besttime = json_object();
         json_object_set_new(besttime, "name", json_string("Best Time"));
         json_object_set_new(besttime, "time", time_to_ms(lsapi.util.time_get_by_method(timer->best_splits[i], timer->game->comparison_method)));
@@ -179,6 +182,11 @@ static size_t curl_discard_response(void* ptr, size_t size, size_t nmemb, void* 
     return size * nmemb;
 }
 
+static void curl_init_once(void)
+{
+    curl_global_init(CURL_GLOBAL_ALL);
+}
+
 void* therun_upload_thread(void* arg)
 {
     char* payload = (char*)arg;
@@ -192,6 +200,9 @@ void* therun_upload_thread(void* arg)
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_discard_response);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 15);
+        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
         CURLcode res = curl_easy_perform(curl);
         if (res != CURLE_OK) {
             // fprintf(stderr, "[therun.gg] FAILED: %s\n", curl_easy_strerror(res));
@@ -245,6 +256,18 @@ int therun_skip(const ls_timer* timer)
     return 0;
 }
 
+int therun_pause(const ls_timer* timer)
+{
+    therun_trigger_update(timer, 3);
+    return 0;
+}
+
+int therun_unpause(const ls_timer* timer)
+{
+    therun_trigger_update(timer, 4);
+    return 0;
+}
+
 int therun_unsplit(const ls_timer* timer)
 {
     therun_trigger_update(timer, 6);
@@ -259,5 +282,10 @@ int plug_init(PlugAPI* api)
     api->register_event_hook(SKIP, therun_skip);
     api->register_event_hook(UNSPLIT, therun_unsplit);
     api->register_event_hook(SPLIT, therun_split);
+    api->register_event_hook(PAUSE, therun_pause);
+    api->register_event_hook(UNPAUSE, therun_unpause);
+
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, curl_init_once);
     return 0;
 }

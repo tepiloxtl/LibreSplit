@@ -17,7 +17,11 @@
 #include <string.h>
 #include <time.h>
 #include <stdint.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <unistd.h>
 
+static const char FIFO_PATH[] = "/tmp/therunsync.fifo";
 static int64_t real_epoch_start_ms = 0;
 static PlugAPI lsapi;
 
@@ -232,9 +236,32 @@ void therun_trigger_update(const ls_timer* timer, int source)
     }
 }
 
+int notify_python(const char *path)
+{
+    char msg[sizeof(FIFO_PATH) > 256 ? sizeof(FIFO_PATH) : 256];
+    int len = snprintf(msg, sizeof(msg), "%s\n", path);
+    if (len < 0 || (size_t)len >= sizeof(msg))
+        return -1;
+
+    int fd = open(FIFO_PATH, O_WRONLY | O_NONBLOCK | O_CLOEXEC);
+    if (fd < 0)
+        return -1;   /* ENOENT: no fifo; ENXIO: python not reading */
+
+    ssize_t n = write(fd, msg, (size_t)len);
+    close(fd);
+
+    if (n == len)
+        return 0;
+    /* EAGAIN: python wedged and pipe full
+       EPIPE:  python died mid-send 
+       EPIPE can kill timer if it happens, unlikely */
+    return -1;
+}
+
 int therun_reset(const ls_timer* timer)
 {
     therun_trigger_update(timer, 2);
+    notify_python(timer->game->path);
     return 0;
 }
 

@@ -75,23 +75,25 @@ char* build_therun_live_payload(const ls_timer* timer, int source)
     json_t* metadata = json_object();
     // This is all to split split file title to game and category for API. Should be added as fields into
     // JSON at some point, alongside platform, region and emulator maybe?
-    const char* game_title = timer->game->title;
-    char* pipe_pos = strchr((char*)game_title, '|');
-    if (pipe_pos != NULL) {
-        size_t game_len = pipe_pos - game_title;
-        while (game_len > 0 && game_title[game_len - 1] == ' ') {
-            game_len--;
-        }
-        json_object_set_new(metadata, "game", json_stringn(game_title, game_len));
-        const char* category_start = pipe_pos + 1;
-        while (*category_start == ' ') {
-            category_start++;
-        }
-        json_object_set_new(metadata, "category", json_string(category_start));
-    } else {
-        json_object_set_new(metadata, "game", json_string(game_title));
-        json_object_set_new(metadata, "category", json_string(""));
-    }
+    // const char* game_title = timer->game->title;
+    // char* pipe_pos = strchr((char*)game_title, '|');
+    // if (pipe_pos != NULL) {
+    //     size_t game_len = pipe_pos - game_title;
+    //     while (game_len > 0 && game_title[game_len - 1] == ' ') {
+    //         game_len--;
+    //     }
+    //     json_object_set_new(metadata, "game", json_stringn(game_title, game_len));
+    //     const char* category_start = pipe_pos + 1;
+    //     while (*category_start == ' ') {
+    //         category_start++;
+    //     }
+    //     json_object_set_new(metadata, "category", json_string(category_start));
+    // } else {
+    //     json_object_set_new(metadata, "game", json_string(game_title));
+    //     json_object_set_new(metadata, "category", json_string(""));
+    // }
+    json_object_set_new(metadata, "game", json_string(timer->game->name));
+    json_object_set_new(metadata, "category", json_string(timer->game->category));
     json_object_set_new(metadata, "platform", json_string(""));
     json_object_set_new(metadata, "region", json_string(""));
     json_object_set_new(metadata, "emulator", json_false());
